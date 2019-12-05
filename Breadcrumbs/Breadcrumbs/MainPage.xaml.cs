@@ -1,7 +1,9 @@
 ﻿using Java.Lang;
 using Plugin.Geolocator;
+using Plugin.Geolocator.Abstractions;
 using System;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using Xamarin.Essentials;
 using Xamarin.Forms;
 using Xamarin.Forms.Maps;
@@ -13,63 +15,64 @@ namespace Breadcrumbs
     [DesignTimeVisible(false)]
     public partial class MainPage : ContentPage
     {
+        private Xamarin.Forms.Maps.Position position;
+
         public MainPage()
         {
-            Console.WriteLine("Beginning of main page");
-
             InitializeComponent();
 
-            Console.WriteLine("pre-location");
-            Position currentPosition = getCurrentLocation();
-            Console.WriteLine("post-location");
-            Console.WriteLine("Position: {0} - {1}", currentPosition.Latitude, currentPosition.Longitude);
-            MainMap.MoveToRegion(MapSpan.FromCenterAndRadius(currentPosition, Distance.FromMiles(1)));
+            MainMap.MoveToRegion(MapSpan.FromCenterAndRadius(position, Distance.FromMiles(1)));
         }
 
-        private Position getCurrentLocation()
+        protected override void OnAppearing()
         {
-            try
-            {
-                var locator = CrossGeolocator.Current;
-                Console.WriteLine("pre-Async");
-                var position = locator.GetPositionAsync(TimeSpan.FromSeconds(10)).Result;
-                Console.WriteLine("post-Async");
+            base.OnAppearing();
 
-                //var request = new GeolocationRequest(GeolocationAccuracy.Best);
-                //Location location = Geolocation.GetLocationAsync(request).Result;
-                Position currentPosition = new Position(position.Latitude, position.Longitude);
+            IGeolocator locator = CrossGeolocator.Current;
 
-                return currentPosition;
-            }
-            catch (FeatureNotSupportedException fnsEx)
+            Task.Run(async () =>
             {
-                // Handle not supported on device exception
-                Console.WriteLine("Unsupported");
-                return new Position(0, 0);
-            }
-            catch (FeatureNotEnabledException fneEx)
-            {
-                // Handle not enabled on device exception
-                Console.WriteLine("not enabled");
-                return new Position(0, 0);
-            }
-            catch (PermissionException pEx)
-            {
-                // Handle permission exception
-                Console.WriteLine("not permitted");
-                return new Position(0, 0);
-            }
-            catch(SecurityException secEx)
-            {
-                Console.WriteLine("security----------------------------------------------------------------------");
-                return new Position(0, 0);
-            }
-            catch (System.Exception ex)
-            {
-                // Unable to get location
-                Console.WriteLine("Hi---------------------------------- \n{0}", ex.StackTrace);
-                return new Position(0, 0);
-            }
+                try
+                {
+                    Plugin.Geolocator.Abstractions.Position currentPosition = await locator.GetLastKnownLocationAsync();
+
+                    if (currentPosition == null)
+                    {
+                        currentPosition = await locator.GetPositionAsync(TimeSpan.FromSeconds(5));
+                    }
+                    else
+                    {
+                        Console.WriteLine("initial Cords: {0} -- {1}", currentPosition.Latitude, currentPosition.Longitude);
+                    }
+
+                    Console.WriteLine("final Cords: {0} -- {1}", currentPosition.Latitude, currentPosition.Longitude);
+                    this.position = new Xamarin.Forms.Maps.Position(currentPosition.Latitude, currentPosition.Longitude);
+                }
+                catch (FeatureNotSupportedException fnsEx)
+                {
+                    // Handle not supported on device exception
+                    Console.WriteLine("Unsupported");
+                }
+                catch (FeatureNotEnabledException fneEx)
+                {
+                    // Handle not enabled on device exception
+                    Console.WriteLine("not enabled");
+                }
+                catch (PermissionException pEx)
+                {
+                    // Handle permission exception
+                    Console.WriteLine("not permitted");
+                }
+                catch (SecurityException secEx)
+                {
+                    Console.WriteLine("security----------------------------------------------------------------------");
+                }
+                catch (System.Exception ex)
+                {
+                    // Unable to get location
+                    Console.WriteLine("Hi---------------------------------- \n{0}", ex.StackTrace);
+                }
+            });
         }
     }
 }
